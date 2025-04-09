@@ -4,3 +4,4 @@ seaborn
 numpy
 scikit-learn
 graphviz
+tensorflow
