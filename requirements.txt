@@ -1,1 +1,6 @@
 streamlit
+streamlit
+matplotlib
+numpy
+scikit-learn
+graphviz
