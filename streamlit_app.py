@@ -1,127 +1,165 @@
 import streamlit as st
 import matplotlib.pyplot as plt
 import numpy as np
-from sklearn.datasets import make_moons
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import accuracy_score, roc_curve, auc
-from sklearn.tree import DecisionTreeClassifier, export_graphviz
+from sklearn.datasets import make_moons
+from sklearn.tree import DecisionTreeClassifier, plot_tree, export_graphviz
 from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.svm import SVC
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.svm import SVC
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.naive_bayes import GaussianNB
-from sklearn.neural_network import MLPClassifier
-import graphviz
-import tensorflow as tf
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense
+from sklearn.metrics import accuracy_score, roc_curve, auc
+import seaborn as sns
 
-# Generate Data
-X, y = make_moons(n_samples=500, noise=0.3, random_state=42)
+# Generate dataset
+X, y = make_moons(n_samples=500, noise=0.30, random_state=42)
 X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=42)
 
-# Sidebar
-st.sidebar.title("ML & DL Classifier")
-classifier_name = st.sidebar.selectbox("Select Classifier", [
-    "Decision Tree", "Logistic Regression", "Random Forest", "SVM",
-    "KNN", "Naive Bayes", "MLP (Sklearn)", "Neural Network (Keras)"
-])
+# Sidebar options
+st.sidebar.title("Classifier Settings")
+classifier_name = st.sidebar.selectbox("Select classifier", (
+    "Decision Tree", "KNN", "Logistic Regression", "SVC", "Random Forest", "Naive Bayes"
+))
 
-# Parameters
+# Hyperparameters
 params = {}
+
 if classifier_name == "Decision Tree":
-    params["max_depth"] = st.sidebar.slider("Max Depth", 1, 20, 3)
-    params["criterion"] = st.sidebar.selectbox("Criterion", ["gini", "entropy"])
-elif classifier_name == "Logistic Regression":
-    params["C"] = st.sidebar.slider("Inverse Regularization (C)", 0.01, 10.0, 1.0)
-elif classifier_name == "Random Forest":
-    params["n_estimators"] = st.sidebar.slider("Number of Estimators", 10, 100, 50)
-    params["max_depth"] = st.sidebar.slider("Max Depth", 1, 20, 3)
-elif classifier_name == "SVM":
-    params["C"] = st.sidebar.slider("C", 0.01, 10.0, 1.0)
-    params["kernel"] = st.sidebar.selectbox("Kernel", ["linear", "rbf"])
+    params['criterion'] = st.sidebar.selectbox("Criterion", ["gini", "entropy"])
+    params['splitter'] = st.sidebar.selectbox("Splitter", ["best", "random"])
+    params['max_depth'] = st.sidebar.slider("Max Depth", 1, 20, 5)
+    params['min_samples_split'] = st.sidebar.slider("Min Samples Split", 2, 10, 2)
+    params['min_samples_leaf'] = st.sidebar.slider("Min Samples Leaf", 1, 10, 1)
+
 elif classifier_name == "KNN":
-    params["n_neighbors"] = st.sidebar.slider("Number of Neighbors", 1, 15, 5)
-elif classifier_name == "MLP (Sklearn)":
-    params["hidden_layer_sizes"] = st.sidebar.slider("Hidden Layer Size", 5, 100, 20)
-elif classifier_name == "Neural Network (Keras)":
-    params["hidden_units"] = st.sidebar.slider("Hidden Units", 4, 128, 16)
-    params["epochs"] = st.sidebar.slider("Epochs", 10, 200, 50)
-    params["batch_size"] = st.sidebar.slider("Batch Size", 8, 128, 32)
+    params['n_neighbors'] = st.sidebar.slider("K", 1, 15)
 
-# Classifier Setup
-def get_classifier(name, params):
-    if name == "Decision Tree":
-        return DecisionTreeClassifier(max_depth=params["max_depth"], criterion=params["criterion"])
-    elif name == "Logistic Regression":
-        return LogisticRegression(C=params["C"])
-    elif name == "Random Forest":
-        return RandomForestClassifier(n_estimators=params["n_estimators"], max_depth=params["max_depth"])
-    elif name == "SVM":
-        return SVC(C=params["C"], kernel=params["kernel"], probability=True)
-    elif name == "KNN":
-        return KNeighborsClassifier(n_neighbors=params["n_neighbors"])
-    elif name == "Naive Bayes":
-        return GaussianNB()
-    elif name == "MLP (Sklearn)":
-        return MLPClassifier(hidden_layer_sizes=(params["hidden_layer_sizes"],))
-    else:
-        return None
+elif classifier_name == "Logistic Regression":
+    params['C'] = st.sidebar.number_input("Inverse Regularization (C)", 0.01, 10.0, 1.0)
 
-# Train & Predict
-scaler = StandardScaler()
-X_train_scaled = scaler.fit_transform(X_train)
-X_test_scaled = scaler.transform(X_test)
+elif classifier_name == "SVC":
+    params['C'] = st.sidebar.number_input("Regularization (C)", 0.01, 10.0, 1.0)
+    params['kernel'] = st.sidebar.selectbox("Kernel", ["linear", "rbf", "poly"])
 
-st.title("ML & DL Classification App")
+elif classifier_name == "Random Forest":
+    params['n_estimators'] = st.sidebar.slider("Number of Trees", 10, 100)
+    params['max_depth'] = st.sidebar.slider("Max Depth", 1, 20)
 
-if classifier_name != "Neural Network (Keras)":
-    clf = get_classifier(classifier_name, params)
-    clf.fit(X_train_scaled, y_train)
-    y_pred = clf.predict(X_test_scaled)
-    y_proba = clf.predict_proba(X_test_scaled)[:, 1]
-    acc = accuracy_score(y_test, y_pred)
-    st.write(f"Accuracy: {acc:.2f}")
-else:
-    model = Sequential([
-        Dense(params["hidden_units"], activation='relu', input_dim=2),
-        Dense(1, activation='sigmoid')
-    ])
-    model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
-    model.fit(X_train_scaled, y_train, epochs=params["epochs"], batch_size=params["batch_size"], verbose=0)
-    acc = model.evaluate(X_test_scaled, y_test, verbose=0)[1]
-    y_proba = model.predict(X_test_scaled).ravel()
-    y_pred = (y_proba > 0.5).astype(int)
-    st.write(f"Accuracy: {acc:.2f}")
+# Classifier selection
+if classifier_name == "Decision Tree":
+    model = DecisionTreeClassifier(**params)
+elif classifier_name == "KNN":
+    model = KNeighborsClassifier(**params)
+elif classifier_name == "Logistic Regression":
+    model = LogisticRegression(**params)
+elif classifier_name == "SVC":
+    model = SVC(probability=True, **params)
+elif classifier_name == "Random Forest":
+    model = RandomForestClassifier(**params)
+elif classifier_name == "Naive Bayes":
+    model = GaussianNB()
 
-# ROC Curve
-fpr, tpr, _ = roc_curve(y_test, y_proba)
-roc_auc = auc(fpr, tpr)
+# Train
+model.fit(X_train, y_train)
+y_pred = model.predict(X_test)
+accuracy = accuracy_score(y_test, y_pred)
+
+# Plot
+st.subheader(f"Classifier = {classifier_name}")
+st.write(f"Accuracy = {accuracy:.2f}")
+
+# Decision boundary plot
+x_min, x_max = X[:, 0].min() - 1, X[:, 0].max() + 1
+y_min, y_max = X[:, 1].min() - 1, X[:, 1].max() + 1
+xx, yy = np.meshgrid(np.linspace(x_min, x_max, 300), np.linspace(y_min, y_max, 300))
+Z = model.predict(np.c_[xx.ravel(), yy.ravel()])
+Z = Z.reshape(xx.shape)
+
 fig, ax = plt.subplots()
-ax.plot(fpr, tpr, label=f'ROC Curve (area = {roc_auc:.2f})')
-ax.plot([0, 1], [0, 1], linestyle='--')
-ax.set_xlabel('False Positive Rate')
-ax.set_ylabel('True Positive Rate')
-ax.set_title('ROC Curve')
-ax.legend()
+ax.contourf(xx, yy, Z, alpha=0.3)
+scatter = ax.scatter(X[:, 0], X[:, 1], c=y, cmap='coolwarm', edgecolors='k')
 st.pyplot(fig)
 
-# Definition & Info
-if classifier_name == "Decision Tree":
-    with st.expander("Decision Tree - Definition & Pros/Cons"):
+# ROC Curve
+if hasattr(model, "predict_proba"):
+    y_prob = model.predict_proba(X_test)[:, 1]
+    fpr, tpr, _ = roc_curve(y_test, y_prob)
+    roc_auc = auc(fpr, tpr)
+    fig_roc, ax_roc = plt.subplots()
+    ax_roc.plot(fpr, tpr, label=f"AUC = {roc_auc:.2f}")
+    ax_roc.plot([0, 1], [0, 1], linestyle="--")
+    ax_roc.set_xlabel("False Positive Rate")
+    ax_roc.set_ylabel("True Positive Rate")
+    ax_roc.set_title("ROC Curve")
+    ax_roc.legend()
+    st.pyplot(fig_roc)
+
+# Definitions, Formulas, Pros & Cons
+with st.expander(f"📘 About {classifier_name}"):
+    if classifier_name == "Decision Tree":
         st.markdown("""
-        **Definition**: A Decision Tree is a tree-like structure used to make decisions based on features.
+        **Definition**: Splits data using decision rules to classify.
         
-        **Formula**: Information Gain = Entropy(parent) - [Weighted average] * Entropy(children)
+        **Formula**:
+        $$ Gini = 1 - \sum p_i^2 \quad \text{or} \quad Entropy = -\sum p_i \log_2(p_i) $$
 
-        **Pros**:
-        - Easy to interpret
-        - Handles both numerical and categorical data
+        **Pros**: Easy to interpret, handles numerical/categorical data.
 
-        **Cons**:
-        - Prone to overfitting
-        - Unstable with small data changes
+        **Cons**: Overfitting, unstable with small data changes.
         """)
+    elif classifier_name == "KNN":
+        st.markdown("""
+        **Definition**: Predicts label based on majority of k-nearest neighbors.
 
-# Add similar blocks for other classifiers
+        **Formula**:
+        $$ d(x, y) = \sqrt{\sum (x_i - y_i)^2} $$
+
+        **Pros**: Simple, no training. 
+
+        **Cons**: Slow with large data, sensitive to irrelevant features.
+        """)
+    elif classifier_name == "Logistic Regression":
+        st.markdown("""
+        **Definition**: Models probability of class using logistic function.
+
+        **Formula**:
+        $$ P(y=1|x) = \frac{1}{1 + e^{-z}}, z = w^Tx + b $$
+
+        **Pros**: Interpretable, efficient.
+
+        **Cons**: Assumes linearity, poor with non-linear data.
+        """)
+    elif classifier_name == "SVC":
+        st.markdown("""
+        **Definition**: Finds optimal hyperplane for class separation.
+
+        **Formula**:
+        $$ \min \frac{1}{2}||w||^2 \text{ subject to } y_i(w^Tx_i + b) \geq 1 $$
+
+        **Pros**: Good in high dimensions.
+
+        **Cons**: Slow training, sensitive to parameters.
+        """)
+    elif classifier_name == "Random Forest":
+        st.markdown("""
+        **Definition**: Ensemble of decision trees, reducing variance.
+
+        **Formula**:
+        $$ \hat{y} = \text{majority\_vote}(Tree_1, ..., Tree_n) $$
+
+        **Pros**: Reduces overfitting, handles missing data.
+
+        **Cons**: Less interpretable, slow prediction.
+        """)
+    elif classifier_name == "Naive Bayes":
+        st.markdown("""
+        **Definition**: Uses Bayes Theorem assuming feature independence.
+
+        **Formula**:
+        $$ P(C|x) = \frac{P(C)\prod P(x_i|C)}{P(x)} $$
+
+        **Pros**: Fast, works well on high dimensions.
+
+        **Cons**: Strong independence assumption, poor with correlated features.
+        """)
