@@ -1,6 +1,6 @@
 streamlit
-streamlit
 matplotlib
+seaborn
 numpy
 scikit-learn
 graphviz
