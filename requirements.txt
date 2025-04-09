@@ -4,5 +4,4 @@ seaborn
 numpy
 scikit-learn
 graphviz
-python_version == 3.10
-tensorflow==2.12.0
+
