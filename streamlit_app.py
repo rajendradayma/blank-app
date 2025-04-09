@@ -1,100 +1,111 @@
 import streamlit as st
-import matplotlib.pyplot as plt
 import numpy as np
-from sklearn.model_selection import train_test_split
+import matplotlib.pyplot as plt
 from sklearn.datasets import make_moons
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, roc_curve, auc
 from sklearn.tree import DecisionTreeClassifier, export_graphviz
-from sklearn.linear_model import LogisticRegression
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
 from sklearn.svm import SVC
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.naive_bayes import GaussianNB
-from sklearn.metrics import accuracy_score
 
-# Generate dataset
+st.set_page_config(layout="wide")
+st.sidebar.title("ML Playground")
+
+# Dataset
 X, y = make_moons(n_samples=500, noise=0.3, random_state=42)
 X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=42)
 
-# Function to create mesh grid
-def draw_meshgrid():
-    a = np.arange(start=X[:, 0].min() - 1, stop=X[:, 0].max() + 1, step=0.01)
-    b = np.arange(start=X[:, 1].min() - 1, stop=X[:, 1].max() + 1, step=0.01)
-    XX, YY = np.meshgrid(a, b)
-    input_array = np.array([XX.ravel(), YY.ravel()]).T
-    return XX, YY, input_array
+# Classifier Selection
+classifier_name = st.sidebar.selectbox("Select Classifier", (
+    "Decision Tree", "KNN", "Logistic Regression", "SVC", "Random Forest", "Naive Bayes"
+))
 
-# Streamlit UI
-st.title("🧠 ML Classifier Playground")
-st.sidebar.title("Model Settings")
-
-algorithm = st.sidebar.selectbox(
-    'Select Classifier',
-    ('Decision Tree', 'Logistic Regression', 'K-Nearest Neighbors', 'Random Forest', 'SVM', 'Naive Bayes')
-)
-
-params = {}
-
-if algorithm == 'Decision Tree':
-    params["criterion"] = st.sidebar.selectbox("Criterion", ['gini', 'entropy'])
-    params["splitter"] = st.sidebar.selectbox("Splitter", ['best', 'random'])
-    params["max_depth"] = st.sidebar.slider("Max Depth", 1, 20, value=5)
-    params["min_samples_split"] = st.sidebar.slider("Min Samples Split", 2, 10, value=2)
-    params["min_samples_leaf"] = st.sidebar.slider("Min Samples Leaf", 1, 10, value=1)
-elif algorithm == 'Logistic Regression':
-    params["C"] = st.sidebar.number_input("Inverse Regularization Strength (C)", 0.01, 10.0, 1.0)
-    params["max_iter"] = st.sidebar.slider("Max Iterations", 100, 1000, 200)
-elif algorithm == 'K-Nearest Neighbors':
-    params["n_neighbors"] = st.sidebar.slider("Number of Neighbors (k)", 1, 20, 5)
-    params["weights"] = st.sidebar.selectbox("Weights", ['uniform', 'distance'])
-elif algorithm == 'Random Forest':
-    params["n_estimators"] = st.sidebar.slider("Number of Estimators", 10, 200, 100)
-    params["max_depth"] = st.sidebar.slider("Max Depth", 1, 20, value=5)
-elif algorithm == 'SVM':
-    params["C"] = st.sidebar.slider("Regularization (C)", 0.01, 10.0, 1.0)
-    params["kernel"] = st.sidebar.selectbox("Kernel", ['linear', 'rbf', 'poly'])
-elif algorithm == 'Naive Bayes':
-    st.sidebar.info("No hyperparameters to tune for GaussianNB.")
-
-# Classifier setup
-def get_classifier(name, params):
-    if name == 'Decision Tree':
-        return DecisionTreeClassifier(**params, random_state=42)
-    elif name == 'Logistic Regression':
-        return LogisticRegression(**params)
-    elif name == 'K-Nearest Neighbors':
-        return KNeighborsClassifier(**params)
-    elif name == 'Random Forest':
-        return RandomForestClassifier(**params, random_state=42)
-    elif name == 'SVM':
-        return SVC(**params, probability=True)
-    elif name == 'Naive Bayes':
+# Classifier Parameters
+def get_classifier(name):
+    if name == "Decision Tree":
+        criterion = st.sidebar.selectbox("Criterion", ["gini", "entropy"])
+        max_depth = st.sidebar.slider("Max Depth", 1, 10, 3)
+        return DecisionTreeClassifier(criterion=criterion, max_depth=max_depth)
+    
+    elif name == "KNN":
+        n_neighbors = st.sidebar.slider("n_neighbors", 1, 15, 5)
+        return KNeighborsClassifier(n_neighbors=n_neighbors)
+    
+    elif name == "Logistic Regression":
+        C = st.sidebar.slider("Inverse Regularization (C)", 0.01, 10.0, 1.0)
+        return LogisticRegression(C=C)
+    
+    elif name == "SVC":
+        C = st.sidebar.slider("C", 0.01, 10.0, 1.0)
+        kernel = st.sidebar.selectbox("Kernel", ["linear", "rbf", "poly", "sigmoid"])
+        probability = True
+        return SVC(C=C, kernel=kernel, probability=probability)
+    
+    elif name == "Random Forest":
+        n_estimators = st.sidebar.slider("n_estimators", 10, 200, 100)
+        return RandomForestClassifier(n_estimators=n_estimators)
+    
+    elif name == "Naive Bayes":
         return GaussianNB()
 
-clf = get_classifier(algorithm, params)
+# Draw Decision Boundary
+def draw_decision_boundary(clf, X, y):
+    x_min, x_max = X[:, 0].min() - .5, X[:, 0].max() + .5
+    y_min, y_max = X[:, 1].min() - .5, X[:, 1].max() + .5
+    h = 0.02
 
-# Plot base data
-fig, ax = plt.subplots()
-ax.scatter(X.T[0], X.T[1], c=y, cmap='rainbow')
-plt.xlabel("Col1")
-plt.ylabel("Col2")
-orig = st.pyplot(fig)
+    xx, yy = np.meshgrid(np.arange(x_min, x_max, h), np.arange(y_min, y_max, h))
+    Z = clf.predict(np.c_[xx.ravel(), yy.ravel()])
+    Z = Z.reshape(xx.shape)
 
-if st.sidebar.button("Run Algorithm"):
-    orig.empty()
+    fig, ax = plt.subplots()
+    ax.contourf(xx, yy, Z, cmap=plt.cm.RdYlBu, alpha=0.8)
+    scatter = ax.scatter(X[:, 0], X[:, 1], c=y, cmap=plt.cm.bwr, edgecolor='k')
+    ax.set_xlabel("Feature 1")
+    ax.set_ylabel("Feature 2")
+    ax.set_title("Decision Boundary")
+    st.pyplot(fig)
+
+# Plot ROC Curve
+def plot_roc_curve(clf, X_test, y_test):
+    if hasattr(clf, "predict_proba"):
+        y_score = clf.predict_proba(X_test)[:, 1]
+    elif hasattr(clf, "decision_function"):
+        y_score = clf.decision_function(X_test)
+    else:
+        st.warning("ROC Curve is not available for this classifier.")
+        return
+
+    fpr, tpr, _ = roc_curve(y_test, y_score)
+    roc_auc = auc(fpr, tpr)
+
+    fig, ax = plt.subplots()
+    ax.plot(fpr, tpr, label=f'ROC Curve (AUC = {roc_auc:.2f})')
+    ax.plot([0, 1], [0, 1], linestyle='--')
+    ax.set_xlabel("False Positive Rate")
+    ax.set_ylabel("True Positive Rate")
+    ax.set_title("ROC Curve")
+    ax.legend(loc="lower right")
+    st.pyplot(fig)
+
+# Train and Evaluate
+if st.sidebar.button("Run Classifier"):
+    clf = get_classifier(classifier_name)
     clf.fit(X_train, y_train)
     y_pred = clf.predict(X_test)
+    acc = accuracy_score(y_test, y_pred)
 
-    XX, YY, input_array = draw_meshgrid()
-    labels = clf.predict(input_array)
+    st.subheader(f"Classifier: {classifier_name}")
+    st.write(f"Accuracy: {acc:.2f}")
 
-    ax.contourf(XX, YY, labels.reshape(XX.shape), alpha=0.5, cmap='rainbow')
-    ax.set_xlabel("Col1")
-    ax.set_ylabel("Col2")
-    orig = st.pyplot(fig)
+    draw_decision_boundary(clf, X, y)
+    plot_roc_curve(clf, X_test, y_test)
 
-    st.subheader(f"Accuracy: **{accuracy_score(y_test, y_pred):.2f}**")
-
-    # Tree visualization
-    if algorithm == "Decision Tree":
-        tree_graph = export_graphviz(clf, feature_names=["Col1", "Col2"])
-        st.graphviz_chart(tree_graph)
+    if classifier_name == "Decision Tree":
+        st.subheader("Decision Tree Structure")
+        dot_data = export_graphviz(clf, out_file=None, feature_names=["Feature 1", "Feature 2"],
+                                   class_names=["Class 0", "Class 1"], filled=True, rounded=True)
+        st.graphviz_chart(dot_data)
